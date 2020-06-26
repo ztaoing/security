@@ -55,6 +55,7 @@ JWT由三部分组成：
 header由两部分组成：
 * typ 类型，一般为JWT
 * alg 加密算法，通常是HMAC SHA256或RSA
+
 一个简单的例子：
 
 ```
@@ -63,5 +64,35 @@ header由两部分组成：
 "typ":"JWT"
 }
 ```
+然后这部分json会被Base64Url编码用于构建JWT的第一部分
+## 2.payload
+是JWT的第二部分，用来携带有效信息的载体，主要是关于用户实体和附加元数据的生命，由以下三部分组成：
+* 注册声明(Registered claims):他是一组预定义的声明，但是并不要求强制使用。主要有iss(JWT签发者)、exp(JWT过期时间)、sub(JWT面向的用户)、aud(接收JWT的一方)等属性信息
+* 公开声明(Public claims):在公开声明中可以添加任何信息，一般是用户信息或者业务扩展信息等
+* 私有声明(Private claims):他是被JWT提供者和消费者共同定义的生命，既不属于注册声明也不属于公开声明
 
+一个简单有效的负载例子：
+```
+{
+"sub":"1234",
+"name":"xuan",
+"exp":12354
+}
+```
+ 然后这部分json会被Base64Url编码用于构建JWT的第二部分
+ 
+## 3.signature
+要创建签名，必须要被编码后的头部、被编码后的有效负载以及一个secret，最后通过在头部定义的加密算法alg，加密生成签名
+
+生成签名的伪代码如下:
+
+```
+HMACSHA256(
+    base64UrlEncode(header)+"."+
+    base64UrlEncode(payload),
+    secret)
+```
+secret作为签发秘钥，用于验证JWT和签发JWT，所以只能由服务端持有，不该泄漏出去。
+
+这是JWT的第三部分。
  
