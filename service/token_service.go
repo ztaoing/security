@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/dgrijalva/jwt-go"
 	uuid "github.com/satori/go.uuid"
 	"net/http"
 	. "security/model"
@@ -314,9 +315,109 @@ type TokenEnhancer interface {
 	Extract(tokenValue string) (*OAuth2Token, *OAuth2Details, error)
 }
 
+//实现TokenStore接口
 type JwtTokenStore struct {
 	jwtTokenEnhancer *JWTTokenEnhancer
 }
+
+func (j *JwtTokenStore) StoreAccessToken(token *OAuth2Token, details *OAuth2Details) {
+	panic("implement me")
+}
+
+func (j *JwtTokenStore) ReadAccessToken(tokenValue string) (*OAuth2Token, error) {
+	panic("implement me")
+}
+
+func (j *JwtTokenStore) ReadOAuth2Details(tokenValue string) (*OAuth2Details, error) {
+	panic("implement me")
+}
+
+func (j *JwtTokenStore) GetAccessToken(details *OAuth2Details) (*OAuth2Token, error) {
+	panic("implement me")
+}
+
+func (j *JwtTokenStore) RemoveAccessToken(tokenValue string) {
+	panic("implement me")
+}
+
+func (j *JwtTokenStore) StoreRefreshToken(token *OAuth2Token, details *OAuth2Details) {
+	panic("implement me")
+}
+
+func (j *JwtTokenStore) RemoveRefreshToken(oauth2Token string) {
+	panic("implement me")
+}
+
+func (j *JwtTokenStore) ReadRefreshToken(tokenValue string) (*OAuth2Token, error) {
+	panic("implement me")
+}
+
+func (j *JwtTokenStore) ReadOAuth2DetailsForRefreshToken(tokenValue string) (*OAuth2Details, error) {
+	panic("implement me")
+}
+
+func NewJwtTokenStore(enhancer *JWTTokenEnhancer) TokenStore {
+	return &JwtTokenStore{
+		jwtTokenEnhancer: enhancer,
+	}
+}
+
+/**
+使用JWT样式为我们维护令牌、用户和客户端之间的绑定关系
+JWTTokenEnhancer会把令牌对应的用户信息和客户端信息写入到JWT样式的令牌声明中，这样我们可以通过令牌值既可以知道令牌绑定的用户信息和客户端信息
+*/
+//实现TokenEnhancer接口
 type JWTTokenEnhancer struct {
 	secretKey []byte
+}
+
+//声明信息
+type OAuth2TokenCustomClaims struct {
+	UserDetails   UserDetails
+	ClientDetails ClientDetails
+	RefreshToken  OAuth2Token
+	jwt.StandardClaims
+}
+
+func (enhance *JWTTokenEnhancer) Enhance(token *OAuth2Token, details *OAuth2Details) (*OAuth2Token, error) {
+	return enhance.sign(token, details)
+}
+
+func (enhance *JWTTokenEnhancer) Extract(tokenValue string) (*OAuth2Token, *OAuth2Details, error) {
+	panic("implement me")
+}
+
+//将令牌对应的用户信息和客户端信息写入到JWT的声明中
+func (enhance *JWTTokenEnhancer) sign(token *OAuth2Token, details *OAuth2Details) (*OAuth2Token, error) {
+	expireTime := token.ExpiresTime
+	clientDetails := *details.Client
+	userDetails := *details.User
+	clientDetails.ClientSecret = ""
+	userDetails.Password = ""
+
+	claims := OAuth2TokenCustomClaims{
+		UserDetails:   userDetails,
+		ClientDetails: clientDetails,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: expireTime.Unix(),
+			Issuer:    "System",
+		},
+	}
+	if token.RefreshToken != nil {
+		claims.RefreshToken = *token.RefreshToken
+	}
+
+	tokens := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	tokenValue, err := tokens.SignedString(enhance.secretKey)
+	if err == nil {
+		token.TokenValue = tokenValue
+		token.TokenType = "jwt"
+		return token, nil
+	}
+	return nil, err
+}
+func NewJWTTokenEnhancer(secretKey string) TokenEnhancer {
+	return &JWTTokenEnhancer{
+		secretKey: []byte(secretKey),
+	}
 }
