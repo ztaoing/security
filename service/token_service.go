@@ -102,6 +102,7 @@ type TokenService interface {
 	ReadAccessToken(tokenValue string) (*OAuth2Token, error)
 }
 
+//用户密码令牌生成
 func NewUsernamePasswordTokenGrant(grantType string, userDetailService UserDetailsService, tokenService TokenService) TokenGrant {
 	return &UsernamePasswordTokenGranter{
 		supportGrantType:   grantType,
@@ -365,8 +366,12 @@ func NewJwtTokenStore(enhancer *JWTTokenEnhancer) TokenStore {
 /**
 使用JWT样式为我们维护令牌、用户和客户端之间的绑定关系
 JWTTokenEnhancer会把令牌对应的用户信息和客户端信息写入到JWT样式的令牌声明中，这样我们可以通过令牌值既可以知道令牌绑定的用户信息和客户端信息
+由于JWT签发之后不可以更改，所以令牌只有在有效时长后才会失效，同时系统中也不会保存令牌值，这样避免了频繁的I/O操作
+借助JWTTokenEnhancer，可以很方便管理JwtTokenStore中的令牌和用户、客户端之间的绑定关系。
 */
+
 //实现TokenEnhancer接口
+
 type JWTTokenEnhancer struct {
 	secretKey []byte
 }
@@ -379,12 +384,32 @@ type OAuth2TokenCustomClaims struct {
 	jwt.StandardClaims
 }
 
+//将令牌对应的用户信息和客户端信息写入到JWT的声明中
 func (enhance *JWTTokenEnhancer) Enhance(token *OAuth2Token, details *OAuth2Details) (*OAuth2Token, error) {
 	return enhance.sign(token, details)
 }
 
+//根据令牌值获取到令牌绑定的用户信息和客户端信息
+//在资源服务器解析JWT成功后，既可以定位请求的来源
 func (enhance *JWTTokenEnhancer) Extract(tokenValue string) (*OAuth2Token, *OAuth2Details, error) {
-	panic("implement me")
+	token, err := jwt.ParseWithClaims(tokenValue, &OAuth2TokenCustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return enhance.secretKey, nil
+	})
+	if err == nil {
+		claims := token.Claims.(*OAuth2TokenCustomClaims)
+		expireTime := time.Unix(claims.ExpiresAt, 0)
+
+		return &OAuth2Token{
+				RefreshToken: &claims.RefreshToken,
+				TokenValue:   tokenValue,
+				ExpiresTime:  &expireTime,
+			}, &OAuth2Details{
+				User:   &claims.UserDetails,
+				Client: &claims.ClientDetails,
+			}, nil
+	}
+	return nil, nil, err
+
 }
 
 //将令牌对应的用户信息和客户端信息写入到JWT的声明中

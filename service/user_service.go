@@ -34,7 +34,7 @@ func NewInMemoryUserDetailsService(userDetailsList []*model.UserDetails) *InMemo
 }
 
 //通过用户名获取用户信息
-func (us *InMemoryUserDetailsService) GetUserDetailsByUsername(ctx context.Context, username, password string) (*model.UserDetails, error) {
+func (us *InMemoryUserDetailsService) GetUserDetailByUserName(ctx context.Context, username, password string) (*model.UserDetails, error) {
 	//根据username获取用户信息
 	if userDetails, ok := us.userDetailsDict[username]; ok {
 		//获取到用户信息
